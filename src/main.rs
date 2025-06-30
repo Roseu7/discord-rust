@@ -50,7 +50,6 @@ struct GameState {
     last_suggestion: String,
 }
 
-// Supabaseのレスポンス用構造体
 #[derive(Debug, Clone, Deserialize)]
 struct WordRecord {
     id: i32,
@@ -64,7 +63,6 @@ struct EmojiRecord {
     discord_format: String,
 }
 
-// 単語評価用の構造体
 #[derive(Debug, Clone)]
 struct WordScore {
     word: String,
@@ -194,7 +192,7 @@ impl Bot {
             return false;
         }
 
-        // 緑色の制約をチェック（正しい位置）
+        // 緑色の制約をチェック
         for (i, result) in results.iter().enumerate() {
             match result {
                 LetterResult::Green => {
@@ -320,7 +318,6 @@ impl Bot {
             return Ok(vec!["SLATE".to_string(), "CRANE".to_string(), "AUDIO".to_string(), "ARISE".to_string(), "OUTER".to_string()]);
         }
 
-        // 以下は既存のコードと同じ...
         if possible_words.len() == 1 {
             return Ok(vec![possible_words[0].word.to_uppercase()]);
         }
@@ -347,7 +344,7 @@ impl Bot {
         Ok(scored_words.into_iter().take(10).map(|ws| ws.word).collect())
     }
 
-    // 単語のスコアを計算（情報理論とヒューリスティックの組み合わせ）
+    // 単語のスコアを計算
     async fn calculate_word_score(&self, word: &str, possible_words: &[WordRecord], game_state: &GameState) -> f64 {
         let mut score = 0.0;
 
@@ -355,7 +352,7 @@ impl Bot {
         let unique_chars: HashSet<char> = word.chars().collect();
         score += unique_chars.len() as f64 * 2.0;
 
-        // 2. 頻出文字スコア（英語の一般的な文字頻度）
+        // 2. 頻出文字スコア
         let common_letters = "EAIOTRNSLCUDPMHGBFYWKVXZJQ";
         for ch in word.chars() {
             if let Some(pos) = common_letters.find(ch) {
@@ -393,7 +390,7 @@ impl Bot {
         score
     }
 
-    // 情報ゲイン（どれだけ候補を効率的に絞り込めるか）を計算
+    // 情報ゲインを計算
     fn calculate_information_gain(&self, word: &str, possible_words: &[WordRecord]) -> f64 {
         if possible_words.len() <= 1 {
             return 0.0;
@@ -482,7 +479,6 @@ impl Bot {
         }
     }
 
-    // ボタンのラベル用の絵文字を取得（標準の絵文字のみ）
     fn get_letter_emoji_for_button(&self, result: &LetterResult) -> String {
         match result {
             LetterResult::Gray => "⬜".to_string(),
@@ -491,7 +487,6 @@ impl Bot {
         }
     }
 
-    // 基本Embedを作成（初回のみ）
     fn create_base_embed() -> CreateEmbed {
         CreateEmbed::new()
             .title("🎯 Wordle Helper Tool")
@@ -542,7 +537,7 @@ impl Bot {
     fn create_result_buttons(&self, word: &str, current_results: &[LetterResult]) -> Vec<CreateActionRow> {
         let mut buttons = Vec::new();
 
-        // 各文字のボタン（標準絵文字 + 文字表示）
+        // 各文字のボタン
         for (i, letter) in word.chars().enumerate() {
             let (emoji, style) = if i < current_results.len() {
                 let emoji = self.get_letter_emoji_for_button(&current_results[i]);
@@ -568,7 +563,7 @@ impl Bot {
             .style(ButtonStyle::Success);
         buttons.push(confirm_button);
 
-        // 5つずつのボタンで行を作成（Discordの制限）
+        // 5つずつのボタンで行を作成
         let mut rows = Vec::new();
         for chunk in buttons.chunks(5) {
             rows.push(CreateActionRow::Buttons(chunk.to_vec()));
@@ -748,7 +743,6 @@ impl Bot {
                 if let Some(state) = states.get_mut(&user_id) {
                     state.current_word = Some(word.clone());
                     state.pending_result = true;
-                    // 初期状態は全て灰色
                     state.current_results = vec![LetterResult::Gray; word.len()];
                 }
             }
@@ -779,7 +773,6 @@ impl Bot {
                 response = response.components(components);
             }
 
-            // ここが重要：UpdateMessageを使用してEmbedを更新（新しいメッセージを作らない）
             let builder = CreateInteractionResponse::UpdateMessage(response);
 
             if let Err(why) = modal.create_response(&ctx.http, builder).await {
@@ -810,13 +803,13 @@ impl Bot {
         } else if component.data.custom_id == "confirm_result" {
             let loading_embed = Self::create_base_embed()
                 .description("⏳ 最適な単語を分析中...");
-            
+
             let loading_response = CreateInteractionResponseMessage::new()
                 .embed(loading_embed)
                 .components(self.create_new_word_button());
-            
+
             let update_response = CreateInteractionResponse::UpdateMessage(loading_response);
-            
+
             if let Err(why) = component.create_response(&ctx.http, update_response).await {
                 println!("Cannot respond to component: {why}");
                 return;
@@ -840,7 +833,6 @@ impl Bot {
                         state.current_results.clear();
                     }
 
-                    // まず基本的な情報を表示（提案は後で）
                     let basic_description = self.update_embed_content(state).await;
                     let embed = Self::create_base_embed()
                         .description(format!("{}\n\n⏳ 最適な単語を分析中...", basic_description));
@@ -853,7 +845,7 @@ impl Bot {
                 }
             };
 
-            // まずローディング状態を表示（既存のメッセージを更新）
+            // ローディング状態を表示
             let loading_response = EditInteractionResponse::new()
                 .embed(embed)
                 .components(components);
@@ -887,7 +879,7 @@ impl Bot {
                     }
                 };
 
-                // 最終的な表示を更新（既存のメッセージを更新）
+                // 最終的な表示を更新
                 let (final_embed, final_components) = {
                     let mut states = bot_clone.game_states.write().await;
                     if let Some(state) = states.get_mut(&user_id) {
@@ -925,7 +917,7 @@ impl Bot {
                         let mut states = self.game_states.write().await;
                         if let Some(state) = states.get_mut(&user_id) {
                             if index < state.current_results.len() {
-                                // 状態を循環させる: Gray -> Yellow -> Green -> Gray
+                                // 状態を循環させる
                                 state.current_results[index] = match state.current_results[index] {
                                     LetterResult::Gray => LetterResult::Yellow,
                                     LetterResult::Yellow => LetterResult::Green,
@@ -954,12 +946,10 @@ impl Bot {
                         response = response.components(components);
                     }
 
-                    // UpdateMessage を使って既存のメッセージを更新
                     if let Err(why) = component.create_response(&ctx.http, CreateInteractionResponse::UpdateMessage(response)).await {
                         println!("Cannot respond to component: {why}");
                     }
                 } else {
-                    // エラーメッセージは一時的に表示（ephemeral）
                     let response = CreateInteractionResponseMessage::new()
                         .content("エラーが発生しました")
                         .ephemeral(true);
